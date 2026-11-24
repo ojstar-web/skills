@@ -32,6 +32,33 @@ those stages so its ownership is clear.
 Extract a module when it has a clear owner, independent tests, or multiple real
 callers. Keep short, single-caller glue near the flow it explains.
 
+## Place and name agent-generated files
+
+Before creating a file or directory, identify the functionality it owns. Search
+the existing entry points, imports, tests, and configuration for that
+functionality. Extend the closest existing owner when it already provides the
+behavior or entry point. For each new permanent file, identify its owner and the
+command, import, or test collection that will use it.
+
+| Location within the owning method | Allowed contents |
+|---|---|
+| `src/` | Importable implementation with a stable responsibility. |
+| `scripts/` | Supported executable entry points and thin launchers using the owning implementation. |
+| `configs/` | Declarative parameters and protocols consumed by known entry points. |
+| `runs/<run_id>/` | Generated outputs, weights, logs, and provenance for a deliberately retained run. |
+| `tests/` | Regression tests collected by the project's test runner. |
+
+- Name Python modules and scripts in `snake_case` for their function. Name
+  tests `test_<behavior>.py` under the owning test tree. Keep experiment
+  variants in configuration and use the repository's run ID convention.
+- Keep the repository root for established public entry points and workspace
+  metadata. Ad-hoc scripts, probes, and run directories belong in
+  `.agent/tmp/<task>/`, including scratch names such as `*_check` and
+  `*_v2_test`. Keep these scratch paths out of `methods/`.
+- Before delivery, review tracked and untracked additions and the actual output
+  paths used by commands. Check each against its owner and the table, then
+  remove temporary files and directories created for this task.
+
 ## Put variants in configuration
 
 Compare two candidate launchers before extracting their common loop. Record
@@ -83,15 +110,14 @@ Design file placement and path code so a later rename/move is cheap:
   import constants instead of repeating string literals.
 - Do not use `parents[N]`: locate the root by walking up to a marker such as
   `.git` or a known file, so adding a directory level cannot silently break it.
-- Store only repository-relative paths in configs/protocols, and never store
-  machine paths, so a move can be bridged with a symlink without changing
-  file hashes.
+- Store workspace-owned paths in new configs and protocols as repository-relative
+  paths. Resolve paths in memory so frozen files retain their hashes.
 - Name directories by responsibility; use numeric prefixes only for pipeline
   order, and do not mix both conventions in one tree.
-- Every rename/move ships with a `MIGRATION.json` mapping and, when historical
-  runs must keep resolving, compatibility symlinks at the old paths.
-- Before adding a root-level file, ask which project entry owns it. Root is a
-  workspace index, not a scratch directory.
+- Record moves in `MIGRATION.json`. Use canonical paths in active commands and
+  apply specific historical mappings before directory-prefix mappings when
+  loading frozen paths. Verify the entry points and loader with the old
+  filesystem aliases absent.
 
 ## Refactor checklist
 
@@ -121,5 +147,6 @@ Design file placement and path code so a later rename/move is cheap:
 - Can I find the train and inference commands and see their execution order?
 - Can I change an experiment variant without copying the training loop?
 - Does each adapter have a clear boundary with its native runner?
+- Does each added file have a verified owner and a caller or test entry?
 - Can I trace a result to its code, resolved config, dataset, and checkpoint?
 - Which callers and saved artifacts would a rename or deletion affect?
